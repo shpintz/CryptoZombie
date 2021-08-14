@@ -1,0 +1,26 @@
+body {
+    padding: 20px;
+}
+
+.rotating-icon {
+    display: inline-block;
+    animation: spin 1s infinite linear;
+}
+
+.zombieFactory{
+    background-color: black;
+    color:chartreuse;
+    text-align: left;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes twist-up {
+    to {
+        transform: rotateX(360deg);
+    }
+}
