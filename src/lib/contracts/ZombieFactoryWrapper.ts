@@ -40,9 +40,9 @@ export class ZombieFactoryWrapper {
     }
 
 
-    async createRandomZombie(name: string, fromAddress: string) {
+    async createRandomZombie(name: string, imgURL: string, fromAddress: string) {
 
-        const tx = await this.contract.methods.createRandomZombie(name).send({
+        const tx = await this.contract.methods.createRandomZombie(name, imgURL).send({
             ...DEFAULT_SEND_OPTIONS,
             from: fromAddress,
             // value

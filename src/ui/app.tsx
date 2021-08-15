@@ -40,6 +40,7 @@ async function createWeb3() {
 }
 
 export function App() {
+
     const [web3, setWeb3] = useState<Web3>(null);
     const [contract, setContract] = useState<ZombieFactoryWrapper>();
     const [accounts, setAccounts] = useState<string[]>();
@@ -122,7 +123,6 @@ export function App() {
         }
     }
 
-
     async function setExistingContractAddress(contractAddress: string) {
         const _contract = new ZombieFactoryWrapper(web3);
         _contract.useDeployed(contractAddress.trim());
@@ -134,7 +134,7 @@ export function App() {
     async function createRandomZombie() {
         try {
             setTransactionInProgress(true);
-            await contract.createRandomZombie(urlName, account);
+            await contract.createRandomZombie(zombieName, urlName, account);
             
             toast(
                 'Successfully Created Zombie.',
@@ -210,28 +210,29 @@ export function App() {
                 type="string"
                 placeholder="Zombie Name"
                 onChange={e => setZombieName(e.target.value)}
-                disabled={true}
             />
             <button onClick={createRandomZombie} disabled={!contract}>
                 Create Zombie
             </button>
             <br />
+
             <div className="zombieFactory">
                 <h3> Zombies Gallery</h3>
-
-                {listZombies.map(data => {
-                    return (
-                        <><img
-                            key={data[0]}
-                            src={data[0]}
-                            style={{ width: 200, height: 200, border: '2px solid black' ,borderRadius:10 }} />
-                            <br/> <b>Level:</b>{data[2]} 
-                            <br/> <b>DNA:</b> {data[1]} <br/> 
-                            <br/> <b>Name:</b> {data[0].length + 1} <br/>
-                            </>
-    
-                    )
-                })}
+                <div className="zombies">
+                    {listZombies.map(data => {
+                        return (
+                            <div className="singleZombie">
+                                <img key={data[0]} src={data[1]} style={{ width: 200, height: 200, border: '2px solid black' , borderRadius:10 }} />
+                                <div className="content">
+                                    <p>Level:{data[3]} </p>
+                                    <p>DNA: {data[2]}</p>
+                                    <p>Name:{data[0]} </p>
+                                </div>
+                            </div>
+        
+                        )
+                    })}
+                </div>
             </div>
             <br />
             <br />
