@@ -7,11 +7,15 @@ import { ToastContainer, toast } from 'react-toastify';
 import './app.scss';
 import 'react-toastify/dist/ReactToastify.css';
 
+import { ZombieFactoryWrapper } from '../lib/contracts/ZombieFactoryWrapper';
+
 import { PolyjuiceHttpProvider } from '@polyjuice-provider/web3';
+import { CONFIG } from '../config';
+
 import { AddressTranslator } from 'nervos-godwoken-integration';
 
-import { ZombieFactoryWrapper } from '../lib/contracts/ZombieFactoryWrapper';
-import { CONFIG } from '../config';
+// erc 20
+import * as CompiledContractArtifact from '../../build/contracts/ERC20.json';
 
 async function createWeb3() {
     // Modern dapp browsers...
@@ -24,6 +28,7 @@ async function createWeb3() {
         };
         const provider = new PolyjuiceHttpProvider(godwokenRpcUrl, providerConfig);
         const web3 = new Web3(provider || Web3.givenProvider);
+
 
         try {
             // Request account access if needed
@@ -40,32 +45,64 @@ async function createWeb3() {
 }
 
 export function App() {
-
     const [web3, setWeb3] = useState<Web3>(null);
     const [contract, setContract] = useState<ZombieFactoryWrapper>();
     const [accounts, setAccounts] = useState<string[]>();
-    const [l2Balance, setL2Balance] = useState<bigint>();
+    const [balance, setBalance] = useState<bigint>();
     const [existingContractIdInputValue, setExistingContractIdInputValue] = useState<string>();
-    const [storedValue, setStoredValue] = useState<number | undefined>();
-    const [deployTxHash, setDeployTxHash] = useState<string | undefined>();
-    const [polyjuiceAddress, setPolyjuiceAddress] = useState<string | undefined>();
     const [transactionInProgress, setTransactionInProgress] = useState(false);
-    const [urlName, setUrlName] = useState('');
-    const [zombieName, setZombieName] = useState('');
-    const [listZombies, setListZombies] = useState([]);
     const toastId = React.useRef(null);
-    const [newStoredNumberInputValue, setNewStoredNumberInputValue] = useState<
-        number | undefined
-    >();
 
+  
+    
+    // Zombie config
+    const [urlName,setUrlName] = useState('');
+    const [zombieName,setZombieName] = useState('');
+    const [listZombies, setListZombies] = useState([]);
+    
+    // godwoken polyjuice
+    const [polyjuiceAddress, setPolyjuiceAddress] = useState('');
+    const [deployTxHash,setDeployTxHash] = useState('')
+
+    // L1 -> l2
+    const [depositAccount, setDepositAccount] = useState<string | undefined>();
+    const [sudtBalance, setSudtBalance] = useState<bigint>();
+
+    // Proxycontract
+    const SUDT_PROXY_CONTRACT_ADDRESS = "0x2195AcD15Accc546eaab354c34C2e0eE5c734bd9";
+    
+
+    // Polyjuice account gets produced with etherum address
     useEffect(() => {
         if (accounts?.[0]) {
             const addressTranslator = new AddressTranslator();
             setPolyjuiceAddress(addressTranslator.ethAddressToGodwokenShortAddress(accounts?.[0]));
+
+            // Layer deposit account gets produced with etherum address
+            addressTranslator.getLayer2DepositAddress(web3,accounts?.[0]).then(_dAdr => {
+                setDepositAccount(_dAdr.addressString);
+                console.log(`Layer 2 Deposit Address on Layer 1: \n${_dAdr.addressString}`);
+            });
+
         } else {
             setPolyjuiceAddress(undefined);
+
+            setDepositAccount(undefined);
         }
     }, [accounts?.[0]]);
+
+    // Checks-sudt-balance
+    useEffect(() =>{
+
+        if(polyjuiceAddress){
+            const contract = new web3.eth.Contract(CompiledContractArtifact.abi as any, SUDT_PROXY_CONTRACT_ADDRESS);
+            contract.methods.balanceOf(polyjuiceAddress).call({
+                from: accounts?.[0]
+            }).then((_sudtBalance : any) => setSudtBalance(BigInt(Number(_sudtBalance))));
+        }
+    },[polyjuiceAddress])
+    
+
 
     useEffect(() => {
         if (transactionInProgress && !toastId.current) {
@@ -90,6 +127,7 @@ export function App() {
 
     const account = accounts?.[0];
 
+    // Grab list of zombies
     useEffect(() => {
         if (contract) {
             setInterval(() => {
@@ -115,22 +153,21 @@ export function App() {
             );
         } catch (error) {
             console.error(error);
-            toast.error(
-                'There was an error sending your transaction. Please check developer console.'
-            );
+            toast('There was an error sending your transaction. Please check developer console.');
         } finally {
             setTransactionInProgress(false);
         }
     }
+
 
     async function setExistingContractAddress(contractAddress: string) {
         const _contract = new ZombieFactoryWrapper(web3);
         _contract.useDeployed(contractAddress.trim());
 
         setContract(_contract);
-        setStoredValue(undefined);
     }
 
+    // Create Zombie Function
     async function createRandomZombie() {
         try {
             setTransactionInProgress(true);
@@ -148,6 +185,8 @@ export function App() {
         }
     }
 
+
+
     useEffect(() => {
         if (web3) {
             return;
@@ -163,7 +202,7 @@ export function App() {
 
             if (_accounts && _accounts[0]) {
                 const _l2Balance = BigInt(await _web3.eth.getBalance(_accounts[0]));
-                setL2Balance(_l2Balance);
+                setBalance(_l2Balance);
             }
         })();
     });
@@ -171,73 +210,102 @@ export function App() {
     const LoadingIndicator = () => <span className="rotating-icon">⚙️</span>;
 
     return (
-        <div style={{textAlign: 'center'}}>
-            Your ETH address: <b>{accounts?.[0]}</b>
-            <br />
-            Your Polyjuice address: <b>{polyjuiceAddress || ' - '}</b>
-            <br />
-            Nervos Layer 2 balance:{' '}
-            <b>{l2Balance ? (l2Balance / 10n ** 8n).toString() : <LoadingIndicator />} CKB</b>
-            <br />
-            <hr />
-            <button onClick={deployContract} disabled={!l2Balance}>
-                Deploy contract
-            </button>
-            &nbsp;or&nbsp;
-            <input
-                placeholder="Existing contract id"
-                onChange={e => setExistingContractIdInputValue(e.target.value)}
-            />
-            <button
-                disabled={!existingContractIdInputValue || !l2Balance}
-                onClick={() => setExistingContractAddress(existingContractIdInputValue)}
-            >
-                Use existing contract
-            </button>
-            <br />
-            Deployed contract address: <b>{contract?.address || '-'}</b> <br />
-            Deploy transaction hash: <b>{deployTxHash || '-'}</b>
-            <br />
+        <div>
 
-            <hr />
-            <h3> Zombie NFT Factory 1.0</h3>
-            <input
-                type="string"
-                placeholder="Enter Zombie url"
-                onChange={e => setUrlName(e.target.value)}
-            />
-            <input
-                type="string"
-                placeholder="Zombie Name"
-                onChange={e => setZombieName(e.target.value)}
-            />
-            <button onClick={createRandomZombie} disabled={!contract}>
-                Create Zombie
-            </button>
-            <br />
-
-            <div className="zombieFactory">
-                <h3> Zombies Gallery</h3>
-                <div className="zombies">
-                    {listZombies.map(data => {
-                        return (
-                            <div className="singleZombie">
-                                <img key={data[0]} src={data[1]} style={{ width: 200, height: 200, border: '2px solid black' , borderRadius:10 }} />
-                                <div className="content">
-                                    <p>Level:{data[3]} </p>
-                                    <p>DNA: {data[2]}</p>
-                                    <p>Name:{data[0]} </p>
-                                </div>
-                            </div>
+            <header>
+                <p>Your ETH address: <b>{accounts?.[0]}</b></p>
+                <p>Your Polyjuice address: <b>{polyjuiceAddress || ' - '}</b></p>
+                <p>Nervos Layer 2 balance:{' '} <b>{balance ? (balance / 10n ** 8n).toString() : <LoadingIndicator />} ETH</b></p>
+                <p>Deployed contract address: <b>{contract?.address || '-'}</b></p> 
+                <p>Deploy transaction hash: <b>{deployTxHash || '-'}</b></p>
+            </header>
+            
         
-                        )
-                    })}
+            <div className="section-one">
+                <p>
+                    The button below will deploy a ZombieFactory smart contract where you can store a
+                    zombie. Basically like a little home hahah. After the contract is deployed you can either
+                    read stored value from smart contract or set a new one. You can do that using the
+                    interface below.
+                </p>
+                <button onClick={deployContract} disabled={!balance}>
+                    Deploy contract
+                </button>
+                &nbsp;or&nbsp;
+                <input
+                    placeholder="Existing contract id"
+                    onChange={e => setExistingContractIdInputValue(e.target.value)}
+                />
+                <button
+                    disabled={!existingContractIdInputValue || !balance}
+                    onClick={() => setExistingContractAddress(existingContractIdInputValue)}
+                >
+                    Use existing contract
+                </button>
+            </div>
+
+            <div className="section-three">
+                <h2>Need to deposit into layer 2?</h2>
+                <p>Get your funds transfer through our force bridge where you can use those assets</p>
+                <p>Your SUDT contract address: {SUDT_PROXY_CONTRACT_ADDRESS}</p>
+                <a href="https://force-bridge-test.ckbapp.dev/bridge/Ethereum/Nervos?xchain-asset=0x0000000000000000000000000000000000000000" target="_blank" >Transfer Now</a>
+
+                <div>
+                    <ul>
+                        <li>Layer2 Deposit Recipient: {depositAccount || ' - '}</li>
+                        <li>Nervos Layer2(godwoken) sudt balance: {sudtBalance ? (sudtBalance).toString() : <LoadingIndicator />} SUDT</li>
+                    </ul>
                 </div>
             </div>
+
+           
+            <div className="section-two">
+                <h3> Zombie NFT Factory 1.0</h3>
+                <input
+                    type="string"
+                    placeholder="Enter Zombie url"
+                    onChange={e => setUrlName(e.target.value)}
+                />
+                <input
+                    type="string"
+                    placeholder="Zombie Name"
+                    onChange={e => setZombieName(e.target.value)}
+                />
+
+                <button onClick={createRandomZombie} disabled={!contract}>  
+                    Create Zombie
+                </button>
+                <br />
+
+                <div className="zombieFactory">
+                    <h3> Zombies Gallery</h3>
+                    <div className="zombies">
+                         {listZombies.map(data => { 
+                            return (
+                                 <div className="singleZombie">
+                                    <img key={data[0]} src={data[1]} style={{ width: 200, height: 200, border: '2px solid black' , borderRadius:10 }} />
+                                    <div className="content">
+                                        <p>Level:{data[3]} </p>
+                                        <p>DNA: {data[2]}</p>
+                                        <p>Name:{data[0]} </p>
+                                    </div>
+                                </div> 
+
+            
+                            )
+                         })} 
+                    </div>
+                 </div>
+            </div>
+
+
+
+            <br />
+                <p>Smile things will be done shortly</p>
+            <br />
             <br />
             <br />
             <hr />
-
             <ToastContainer />
         </div>
     );
