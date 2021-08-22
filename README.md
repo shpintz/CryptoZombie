@@ -1,7 +1,4 @@
 # Blockchain workshop (Zombie Factory)
 
-Start UI:
-
-```
-yarn && yarn build && yarn ui
-```
+Task Submission:
+1. ![img]('./ECM-on-Layer-2-with-forcebridge.png')
