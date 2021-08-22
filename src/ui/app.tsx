@@ -14,6 +14,9 @@ import { CONFIG } from '../config';
 
 import { AddressTranslator } from 'nervos-godwoken-integration';
 
+// erc 20
+import * as CompiledContractArtifact from '../../build/contracts/ERC20.json';
+
 async function createWeb3() {
     // Modern dapp browsers...
     if ((window as any).ethereum) {
@@ -49,6 +52,8 @@ export function App() {
     const [existingContractIdInputValue, setExistingContractIdInputValue] = useState<string>();
     const [transactionInProgress, setTransactionInProgress] = useState(false);
     const toastId = React.useRef(null);
+
+  
     
     // Zombie config
     const [urlName,setUrlName] = useState('');
@@ -63,29 +68,40 @@ export function App() {
     const [depositAccount, setDepositAccount] = useState<string | undefined>();
     const [sudtBalance, setSudtBalance] = useState<bigint>();
 
+    // Proxycontract
+    const SUDT_PROXY_CONTRACT_ADDRESS = "0x2195AcD15Accc546eaab354c34C2e0eE5c734bd9";
+    
+
     // Polyjuice account gets produced with etherum address
     useEffect(() => {
         if (accounts?.[0]) {
             const addressTranslator = new AddressTranslator();
             setPolyjuiceAddress(addressTranslator.ethAddressToGodwokenShortAddress(accounts?.[0]));
-        } else {
-            setPolyjuiceAddress(undefined);
-        }
-    }, [accounts?.[0]]);
-    
-    // Layer deposit account gets produced with etherum address
-    useEffect(() => {
-        if(accounts?.[0]){
-            const addressTranslator = new AddressTranslator();
+
+            // Layer deposit account gets produced with etherum address
             addressTranslator.getLayer2DepositAddress(web3,accounts?.[0]).then(_dAdr => {
                 setDepositAccount(_dAdr.addressString);
                 console.log(`Layer 2 Deposit Address on Layer 1: \n${_dAdr.addressString}`);
-            })
-        }else{
+            });
+
+        } else {
+            setPolyjuiceAddress(undefined);
+
             setDepositAccount(undefined);
         }
-    }, [accounts?.[0]])
+    }, [accounts?.[0]]);
 
+    // Checks-sudt-balance
+    useEffect(() =>{
+
+        if(polyjuiceAddress){
+            const contract = new web3.eth.Contract(CompiledContractArtifact.abi as any, SUDT_PROXY_CONTRACT_ADDRESS);
+            contract.methods.balanceOf(polyjuiceAddress).call({
+                from: accounts?.[0]
+            }).then((_sudtBalance : any) => setSudtBalance(BigInt(Number(_sudtBalance))));
+        }
+    },[polyjuiceAddress])
+    
 
 
     useEffect(() => {
@@ -226,6 +242,20 @@ export function App() {
                 >
                     Use existing contract
                 </button>
+            </div>
+
+            <div className="section-three">
+                <h2>Need to deposit into layer 2?</h2>
+                <p>Get your funds transfer through our force bridge where you can use those assets</p>
+                <p>Your SUDT contract address: {SUDT_PROXY_CONTRACT_ADDRESS}</p>
+                <a href="https://force-bridge-test.ckbapp.dev/bridge/Ethereum/Nervos?xchain-asset=0x0000000000000000000000000000000000000000" target="_blank" >Transfer Now</a>
+
+                <div>
+                    <ul>
+                        <li>Layer2 Deposit Recipient: {depositAccount || ' - '}</li>
+                        <li>Nervos Layer2(godwoken) sudt balance: {sudtBalance ? (sudtBalance).toString() : <LoadingIndicator />} SUDT</li>
+                    </ul>
+                </div>
             </div>
 
            
