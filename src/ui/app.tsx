@@ -58,8 +58,12 @@ export function App() {
     // godwoken polyjuice
     const [polyjuiceAddress, setPolyjuiceAddress] = useState('');
     const [deployTxHash,setDeployTxHash] = useState('')
-   
 
+    // L1 -> l2
+    const [depositAccount, setDepositAccount] = useState<string | undefined>();
+    const [sudtBalance, setSudtBalance] = useState<bigint>();
+
+    // Polyjuice account gets produced with etherum address
     useEffect(() => {
         if (accounts?.[0]) {
             const addressTranslator = new AddressTranslator();
@@ -68,6 +72,21 @@ export function App() {
             setPolyjuiceAddress(undefined);
         }
     }, [accounts?.[0]]);
+    
+    // Layer deposit account gets produced with etherum address
+    useEffect(() => {
+        if(accounts?.[0]){
+            const addressTranslator = new AddressTranslator();
+            addressTranslator.getLayer2DepositAddress(web3,accounts?.[0]).then(_dAdr => {
+                setDepositAccount(_dAdr.addressString);
+                console.log(`Layer 2 Deposit Address on Layer 1: \n${_dAdr.addressString}`);
+            })
+        }else{
+            setDepositAccount(undefined);
+        }
+    }, [accounts?.[0]])
+
+
 
     useEffect(() => {
         if (transactionInProgress && !toastId.current) {
